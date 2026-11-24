@@ -5,6 +5,7 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(Rigidbody2D))]
 public class scr_player : MonoBehaviour
 {
+    [SerializeField] public bool DEBUG; 
     //Input actions
     public InputActionAsset Actions;
     private InputAction Move;
@@ -15,7 +16,7 @@ public class scr_player : MonoBehaviour
     public GameObject cameraObject;
 
     //Components
-    private Rigidbody2D rigidbody;
+    public Rigidbody2D rigidbody;
     private BoxCollider2D collider;
 
     //Movement
@@ -31,6 +32,26 @@ public class scr_player : MonoBehaviour
 
     [SerializeField] float distanceFromGround = 1f;
     [SerializeField] float jumpForce = 1.5f;
+
+    //Mode
+    //Jogging is the same as sprinting, except you go a bit faster
+    public enum Mode
+    {
+        Walking, Jogging, Sprinting
+    }
+    public Mode mode = Mode.Walking;
+    private float timeWalking;
+    private bool continusMove;
+
+    [SerializeField] float walkToJog = 3f;
+    [SerializeField] float jogToSprint = 3f;
+
+    
+    [SerializeField] float walkSpeed = 1f;
+    [SerializeField] float jogSpeed = 3f;
+
+
+
 
 
 
@@ -95,6 +116,14 @@ public class scr_player : MonoBehaviour
         //Left right stuff
         controlMoving = Move.ReadValue<Vector2>();
 
+        if (Move.WasPressedThisFrame())
+        {
+            timeWalking = 0;
+            if (Math.Abs(controlMoving.x) < 0.1f)
+            {
+                mode = Mode.Walking;
+            }
+        }
 
 
         //Jump stuff
@@ -117,24 +146,82 @@ public class scr_player : MonoBehaviour
 
     private void Movement()
     {
-        //transform.position = newPosition;
-        //Movement
-        //If not input, trend towards 0
         if (Mathf.Abs(controlMoving.x) < 0.1f)
         {
             //currentVelocity = Mathf.Round(Mathf.Lerp(rigidbody.linearVelocityX, 0f, friction * Time.deltaTime) * 100) / 100;
             currentVelocity = Mathf.Lerp(rigidbody.linearVelocityX, 0f, friction * Time.fixedDeltaTime);
+
+            // Stop tiny residual velocities
+            if (Mathf.Abs(currentVelocity) < 0.05f)
+            {
+                currentVelocity = 0f;
+            }
         }
-        //If our speed is greater than maxSpeed, trend back towards maxspeed
-        else if (Math.Abs(rigidbody.linearVelocityX) > maxSpeed)
+        else
         {
-            currentVelocity = Mathf.Lerp(rigidbody.linearVelocityX, Mathf.Sign(rigidbody.linearVelocityX) * maxSpeed, airFriction * Time.fixedDeltaTime);
+            //Update how long we've held a key for
+            timeWalking += Time.fixedDeltaTime;
+
+            switch (mode)
+            {
+                case Mode.Walking:
+                currentVelocity = walkSpeed * controlMoving.x * Time.fixedDeltaTime;
+                if (timeWalking >= walkToJog)
+                {
+                    mode = Mode.Jogging;
+                }
+                break;
+                case Mode.Jogging:
+                currentVelocity = jogSpeed * controlMoving.x * Time.fixedDeltaTime;
+
+                break;
+                case Mode.Sprinting:
+                break;
+            }
         }
-        else 
+
+        
+        //Apply speed
+        rigidbody.linearVelocityX = currentVelocity;
+    }
+
+    private void OLDMovement()
+    {
+        //transform.position = newPosition;
+        //Movement
+        //If no input, trend towards 0
+        if (Mathf.Abs(controlMoving.x) < 0.1f)
         {
-            //currentVelocity = Mathf.Round(Mathf.Clamp(rigidbody.linearVelocityX + (acceleration * Time.deltaTime * controlMoving.x), -maxSpeed, maxSpeed) * 100) / 100f;
-            currentVelocity = Mathf.Clamp(rigidbody.linearVelocityX + (acceleration * Time.fixedDeltaTime * controlMoving.x), -maxSpeed, maxSpeed);
+            //currentVelocity = Mathf.Round(Mathf.Lerp(rigidbody.linearVelocityX, 0f, friction * Time.deltaTime) * 100) / 100;
+            currentVelocity = Mathf.Lerp(rigidbody.linearVelocityX, 0f, friction * Time.fixedDeltaTime);
+
+            // Stop tiny residual velocities
+            if (Mathf.Abs(currentVelocity) < 0.05f)
+            {
+                currentVelocity = 0f;
+            }
         }
+        else
+        {
+            // Input exists: accelerate towards the target velocity
+            float targetVelocity = controlMoving.x * maxSpeed;
+
+            float currentAcceleration = acceleration;
+
+            // Apply stronger deceleration when reversing direction
+            if ((Mathf.Sign(controlMoving.x) != Mathf.Sign(rigidbody.linearVelocityX)) && (rigidbody.linearVelocityX != 0))
+            {
+                currentAcceleration = airFriction;
+            }
+
+            currentVelocity = Mathf.Lerp(
+                rigidbody.linearVelocityX,
+                targetVelocity,
+                currentAcceleration * Time.fixedDeltaTime
+            );
+        }
+
+
 
 
         
