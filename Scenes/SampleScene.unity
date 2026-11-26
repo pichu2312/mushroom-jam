@@ -5315,19 +5315,21 @@ MonoBehaviour:
   Actions: {fileID: -944628639613478452, guid: 8658b538bc22bbd43bfe816477c13661, type: 3}
   cameraObject: {fileID: 330585543}
   rigidbody: {fileID: 0}
-  acceleration: 0.1
-  maxSpeed: 7
+  minAcceleration: 1
+  maxAcceleration: 3
+  walkAcceleration: 10
+  maxSpeed: 6
   baseSprintSpeed: 4
   jumpAmount: 5
-  friction: 0.1
+  minFriction: 1
+  maxFriction: 3
   airFriction: 0.01
   distanceFromGround: 0.5
   jumpForce: 1.2
+  turningModifier: 4
+  overMaxSpeedModifier: 30
   mode: 0
-  walkToJog: 3
-  jogToSprint: 3
-  walkSpeed: 80
-  jogSpeed: 80
+  walkSpeed: 2
   dashWindow: 1
   fallLongMult: 0.5
   fallShortMult: 5

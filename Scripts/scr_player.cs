@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.InputSystem;
@@ -26,17 +27,25 @@ public class scr_player : MonoBehaviour
     //Vector2 newPosition;
     float currentVelocity;
     //Values to change
-    [SerializeField] float acceleration = 1f;
+    [SerializeField] float minAcceleration = 1f;
+    [SerializeField] float maxAcceleration = 3f;
+    [SerializeField] float walkAcceleration = 10f;
+
     [SerializeField] float maxSpeed = 6f;
     [SerializeField] float baseSprintSpeed = 4f;
 
 
     [SerializeField] float jumpAmount = 4f;
-    [SerializeField] float friction = 1f;
+    [SerializeField] float minFriction = 1f;
+    [SerializeField] float maxFriction = 3f;
+
     [SerializeField] float airFriction = 0.5f;
 
     [SerializeField] float distanceFromGround = 1f;
     [SerializeField] float jumpForce = 1.5f;
+
+    [SerializeField] float turningModifier = 4f;
+    [SerializeField] float overMaxSpeedModifier = 8f;
 
     //Mode
     //Jogging is the same as sprinting, except you go a bit faster
@@ -45,22 +54,15 @@ public class scr_player : MonoBehaviour
         Idle, Walking, Sprinting
     }
     public Mode mode = Mode.Walking;
-    private float timeWalking;
-    private bool continusMove;
 
-    [SerializeField] float walkToJog = 3f;
-    [SerializeField] float jogToSprint = 3f;
-
-    
     [SerializeField] float walkSpeed = 1f;
-    [SerializeField] float jogSpeed = 3f;
 
     //Dashing
     [SerializeField] float dashWindow; //Time in seconds the player has after pressing down on a key to press it again and repeat the process
     float dashKey;
     bool canDash = false;
         bool dashStarted = false;
-
+    bool turning = false;
 
 
 
@@ -76,8 +78,6 @@ public class scr_player : MonoBehaviour
 
     //Inputs
     Vector2 controlMoving;
-    bool controlJumping;
-
     //Animations
     Animator animator;
     SpriteRenderer sprite;
@@ -143,7 +143,8 @@ public class scr_player : MonoBehaviour
                 mode = Mode.Walking;
             }
             */
-            mode = Mode.Walking;
+            if (mode == Mode.Idle) {mode = Mode.Walking;}
+
             //Dash
             if (canDash && (dashKey == controlMoving.x))
             {
@@ -186,17 +187,31 @@ public class scr_player : MonoBehaviour
 
     private void Movement()
     {
+
         if (Mathf.Abs(controlMoving.x) < 0.1f)
         {
             //currentVelocity = Mathf.Round(Mathf.Lerp(rigidbody.linearVelocityX, 0f, friction * Time.deltaTime) * 100) / 100;
-            currentVelocity = Mathf.MoveTowards(rigidbody.linearVelocityX, 0f, friction * Time.fixedDeltaTime);
 
-            // Stop tiny residual velocities
-            if (Mathf.Abs(currentVelocity) < 0.05f)
+            if (Mathf.Abs(currentVelocity) > 0)
             {
-                currentVelocity = 0f;
-                mode = Mode.Idle;
+                //Friction equal to
+                float frictionTemp;
+                frictionTemp = Mathf.Lerp(minFriction, maxFriction * 3, Math.Abs(currentVelocity)/maxSpeed);
+
+                currentVelocity = Mathf.MoveTowards(rigidbody.linearVelocityX, 0f, frictionTemp * Time.fixedDeltaTime);
+
+                // Stop tiny residual velocities
+                if (Mathf.Abs(currentVelocity) < 0.05f)
+                {
+                    currentVelocity = 0f;
+                    mode = Mode.Idle;
+                }
+                else if (Mathf.Abs(currentVelocity) < walkSpeed)
+                {
+                    mode = Mode.Walking;
+                }
             }
+
         }
         else
         {
@@ -206,11 +221,38 @@ public class scr_player : MonoBehaviour
             switch (mode)
             {
                 case Mode.Walking:
-                currentVelocity = walkSpeed * controlMoving.x * Time.fixedDeltaTime;
+                currentVelocity = Mathf.MoveTowards(rigidbody.linearVelocityX, Math.Sign(controlMoving.x) * walkSpeed, walkAcceleration * Time.fixedDeltaTime);
                 break;
                 case Mode.Sprinting:
                 if (dashStarted) {rigidbody.linearVelocityX = Math.Sign(controlMoving.x) * baseSprintSpeed; dashStarted = false;}
-                currentVelocity = Mathf.MoveTowards(rigidbody.linearVelocityX, Math.Sign(controlMoving.x) * maxSpeed, 1 + acceleration * Time.fixedDeltaTime);
+
+                //Set up acceleration
+                float accelerationTemp;
+                accelerationTemp = Mathf.Lerp(maxAcceleration, minAcceleration, Math.Abs(currentVelocity)/maxSpeed);
+
+                //If turning around, make acceleration higher
+                if (Mathf.Sign(currentVelocity) != Mathf.Sign(controlMoving.x))
+                {
+                    accelerationTemp *= turningModifier; 
+                    turning = true;  
+                }
+                else
+                {
+                    if (turning)
+                    {
+                        rigidbody.linearVelocityX = baseSprintSpeed * controlMoving.x;    
+                    }
+
+                    turning = false;       
+                }
+
+                //If character is above maxspeed and not in the air, make acceleration much higher to move them back towards the maxSpeed
+                if ((Math.Abs(currentVelocity) > maxSpeed) && (IsGrounded()))
+                    {
+                        accelerationTemp *= overMaxSpeedModifier;
+                    }
+
+                currentVelocity = Mathf.MoveTowards(rigidbody.linearVelocityX, Math.Sign(controlMoving.x) * maxSpeed, accelerationTemp * Time.fixedDeltaTime);
                 break;
             }
         }
